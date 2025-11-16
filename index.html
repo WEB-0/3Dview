@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 파일 뷰어</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #1a1a1a;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: #e0e0e0;
+        }
+
+        .header {
+            background: #242424;
+            padding: 20px;
+            border-bottom: 1px solid #333;
+        }
+
+        .header h1 {
+            color: #f5f5f5;
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        .header p {
+            color: #999;
+            font-size: 14px;
+        }
+
+        .supported-formats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .format-badge {
+            background: #333;
+            color: #aaa;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: 1px solid #404040;
+        }
+
+        .container {
+            flex: 1;
+            display: flex;
+            padding: 0;
+            gap: 0;
+            max-width: 100%;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .upload-section {
+            background: #242424;
+            padding: 24px;
+            width: 320px;
+            border-right: 1px solid #333;
+            overflow-y: auto;
+        }
+
+        .upload-area {
+            border: 2px dashed #404040;
+            border-radius: 6px;
+            padding: 32px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: #2a2a2a;
+        }
+
+        .upload-area:hover {
+            border-color: #555;
+            background: #2f2f2f;
+        }
+
+        .upload-area.drag-over {
+            background: #333;
+            border-color: #666;
+        }
+
+        .upload-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+            opacity: 0.6;
+        }
+
+        .upload-text {
+            color: #999;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .upload-hint {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .controls {
+            margin-top: 24px;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #ccc;
+            font-weight: 500;
+            font-size: 13px;
+        }
+
+        .control-group input[type="color"] {
+            width: 100%;
+            height: 36px;
+            border: 1px solid #404040;
+            border-radius: 4px;
+            background: #2a2a2a;
+            cursor: pointer;
+        }
+
+        .control-group input[type="range"] {
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            outline: none;
+            background: #404040;
+            -webkit-appearance: none;
+        }
+
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #666;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .control-group input[type="range"]::-webkit-slider-thumb:hover {
+            background: #888;
+        }
+
+        .control-group input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #666;
+            cursor: pointer;
+            border: none;
+        }
+
+        .control-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #555;
+        }
+
+        .value-display {
+            display: inline-block;
+            color: #888;
+            font-size: 12px;
+            margin-left: 8px;
+            min-width: 50px;
+        }
+
+        .transform-controls {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .transform-controls.active {
+            display: block;
+        }
+
+        .floating-transform-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 280px;
+            background: rgba(36, 36, 36, 0.95);
+            border: 1px solid #404040;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            opacity: 0;
+            transform: translateX(20px);
+            pointer-events: none;
+            transition: all 0.3s ease;
+        }
+
+        .floating-transform-controls.active {
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: all;
+        }
+
+        .floating-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            border-bottom: 1px solid #333;
+        }
+
+        .floating-header .section-title {
+            margin: 0;
+            font-size: 13px;
+        }
+
+        .close-btn {
+            background: transparent;
+            border: none;
+            color: #888;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .close-btn:hover {
+            background: #3a3a3a;
+            color: #ccc;
+        }
+
+        .floating-content {
+            padding: 16px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .floating-content .control-group {
+            margin-bottom: 16px;
+        }
+
+        .floating-content .control-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: #ccc;
+            font-weight: 500;
+            font-size: 12px;
+        }
+
+        .slider-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .slider-group input[type="range"] {
+            flex: 1;
+        }
+
+        .slider-group .value-display {
+            min-width: 45px;
+            text-align: right;
+            font-size: 11px;
+            color: #888;
+        }
+
+        .control-divider {
+            height: 1px;
+            background: #333;
+            margin: 16px 0;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        .button {
+            width: 100%;
+            padding: 10px;
+            background: #333;
+            color: #ccc;
+            border: 1px solid #404040;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            margin-top: 8px;
+        }
+
+        .button:hover {
+            background: #3a3a3a;
+            border-color: #4a4a4a;
+        }
+
+        .button:disabled {
+            background: #2a2a2a;
+            color: #555;
+            cursor: not-allowed;
+            border-color: #333;
+        }
+
+        .viewer-section {
+            flex: 1;
+            background: #1e1e1e;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            min-height: 600px;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(30, 30, 30, 0.95);
+            padding: 24px 40px;
+            border-radius: 6px;
+            border: 1px solid #404040;
+            text-align: center;
+            display: none;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #333;
+            border-top: 3px solid #666;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading p {
+            color: #999;
+            font-size: 14px;
+        }
+
+        .file-info {
+            margin-top: 20px;
+            padding: 12px;
+            background: #2a2a2a;
+            border-radius: 4px;
+            border: 1px solid #333;
+            display: none;
+        }
+
+        .file-info.active {
+            display: block;
+        }
+
+        .file-info p {
+            color: #999;
+            font-size: 13px;
+            margin-bottom: 6px;
+            line-height: 1.5;
+        }
+
+        .file-info strong {
+            color: #ccc;
+        }
+
+        .model-list {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .model-list.active {
+            display: block;
+        }
+
+        #modelItems {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .model-item {
+            background: #2a2a2a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .model-item:hover {
+            background: #2f2f2f;
+            border-color: #404040;
+        }
+
+        .model-item.selected {
+            background: #333;
+            border-color: #555;
+            box-shadow: 0 0 0 2px rgba(100, 100, 100, 0.3);
+        }
+
+        .model-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .model-item-name {
+            color: #ccc;
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .model-item-size {
+            color: #666;
+            font-size: 11px;
+            margin-top: 2px;
+        }
+
+        .model-item-controls {
+            display: flex;
+            gap: 4px;
+        }
+
+        .model-item-btn {
+            background: #333;
+            border: 1px solid #404040;
+            color: #aaa;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+        }
+
+        .model-item-btn:hover {
+            background: #3a3a3a;
+            border-color: #4a4a4a;
+        }
+
+        .model-item-btn.hidden {
+            opacity: 0.5;
+        }
+
+        .section-divider {
+            height: 1px;
+            background: #333;
+            margin: 20px 0;
+        }
+
+        .section-title {
+            color: #aaa;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .upload-section {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid #333;
+            }
+
+            #canvas-container {
+                min-height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>3D 파일 뷰어</h1>
+        <p>3D 모델 파일을 업로드하고 실시간으로 확인하세요</p>
+        <div class="supported-formats">
+            <span class="format-badge">OBJ</span>
+            <span class="format-badge">FBX</span>
+            <span class="format-badge">USDZ</span>
+            <span class="format-badge">STL</span>
+            <span class="format-badge">GLTF</span>
+            <span class="format-badge">GLB</span>
+            <span class="format-badge">PLY</span>
+            <span class="format-badge">3DS</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="upload-section">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📁</div>
+                <p class="upload-text">클릭하거나 파일을 드래그하세요</p>
+                <p class="upload-hint">최대 50MB</p>
+                <input type="file" id="fileInput" class="file-input" 
+                       accept=".obj,.fbx,.usdz,.stl,.gltf,.glb,.ply,.3ds" multiple>
+            </div>
+
+            <div class="model-list" id="modelList">
+                <div class="section-title">로드된 모델</div>
+                <div id="modelItems"></div>
+            </div>
+
+            <div class="section-divider"></div>
+
+            <div class="controls">
+                <div class="section-title">뷰어 설정</div>
+                
+                <div class="control-group">
+                    <label for="bgColor">배경 색상</label>
+                    <input type="color" id="bgColor" value="#1e1e1e">
+                </div>
+
+                <div class="control-group">
+                    <label for="lightIntensity">조명 강도</label>
+                    <input type="range" id="lightIntensity" min="0" max="3" step="0.1" value="1.5">
+                </div>
+
+                <div class="control-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="wireframe">
+                        <span>와이어프레임 모드</span>
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="autoRotate">
+                        <span>자동 회전</span>
+                    </label>
+                </div>
+
+                <div class="control-group" id="animationControls" style="display: none;">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="playAnimation" checked>
+                        <span>애니메이션 재생</span>
+                    </label>
+                    <p id="animationInfo" style="font-size: 12px; color: #666; margin-top: 8px;"></p>
+                </div>
+            </div>
+
+            <div class="section-divider"></div>
+
+            <div class="section-title">작업</div>
+            <button id="resetBtn" class="button" disabled>뷰 초기화</button>
+            <button id="downloadBtn" class="button" disabled>스크린샷 저장</button>
+        </div>
+
+        <div class="viewer-section">
+            <div id="canvas-container"></div>
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>파일을 불러오는 중...</p>
+            </div>
+            
+            <!-- 우측 플로팅 변형 컨트롤 -->
+            <div class="floating-transform-controls" id="transformControls">
+                <div class="floating-header">
+                    <div class="section-title">선택된 모델 변형</div>
+                    <button class="close-btn" id="deselectBtn">✕</button>
+                </div>
+                
+                <div class="floating-content">
+                    <div class="control-group">
+                        <label>위치 X</label>
+                        <div class="slider-group">
+                            <input type="range" id="posX" min="-10" max="10" step="0.1" value="0">
+                            <span id="posXValue" class="value-display">0</span>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>위치 Y</label>
+                        <div class="slider-group">
+                            <input type="range" id="posY" min="-10" max="10" step="0.1" value="0">
+                            <span id="posYValue" class="value-display">0</span>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>위치 Z</label>
+                        <div class="slider-group">
+                            <input type="range" id="posZ" min="-10" max="10" step="0.1" value="0">
+                            <span id="posZValue" class="value-display">0</span>
+                        </div>
+                    </div>
+
+                    <div class="control-divider"></div>
+                    
+                    <div class="control-group">
+                        <label>회전 X (도)</label>
+                        <div class="slider-group">
+                            <input type="range" id="rotX" min="0" max="360" step="1" value="0">
+                            <span id="rotXValue" class="value-display">0°</span>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>회전 Y (도)</label>
+                        <div class="slider-group">
+                            <input type="range" id="rotY" min="0" max="360" step="1" value="0">
+                            <span id="rotYValue" class="value-display">0°</span>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>회전 Z (도)</label>
+                        <div class="slider-group">
+                            <input type="range" id="rotZ" min="0" max="360" step="1" value="0">
+                            <span id="rotZValue" class="value-display">0°</span>
+                        </div>
+                    </div>
+
+                    <div class="control-divider"></div>
+                    
+                    <div class="control-group">
+                        <label>크기</label>
+                        <div class="slider-group">
+                            <input type="range" id="scale" min="0.1" max="3" step="0.1" value="1">
+                            <span id="scaleValue" class="value-display">1.0x</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/USDZLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/PLYLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/TDSLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fflate@0.7.3/umd/index.js"></script>
+
+    <script>
+        let scene, camera, renderer, controls;
+        let models = []; // 배열로 변경
+        let selectedModel = null; // 선택된 모델
+        let animationMixer = null;
+        let lights = {};
+        const clock = new THREE.Clock();
+        
+        // 모델 클릭 선택을 위한 변수
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1e1e1e);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(
+                50,
+                container.clientWidth / container.clientHeight,
+                0.1,
+                1000
+            );
+            camera.position.set(5, 3, 5);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                preserveDrawingBuffer: true
+            });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 1;
+            controls.maxDistance = 100;
+
+            // Lights
+            lights.ambient = new THREE.AmbientLight(0xffffff, 1.2);
+            scene.add(lights.ambient);
+
+            lights.directional1 = new THREE.DirectionalLight(0xffffff, 1.2);
+            lights.directional1.position.set(5, 5, 5);
+            lights.directional1.castShadow = true;
+            scene.add(lights.directional1);
+
+            lights.directional2 = new THREE.DirectionalLight(0xffffff, 0.9);
+            lights.directional2.position.set(-5, 3, -5);
+            scene.add(lights.directional2);
+
+            lights.directional3 = new THREE.DirectionalLight(0xffffff, 0.6);
+            lights.directional3.position.set(0, -5, 0);
+            scene.add(lights.directional3);
+
+            lights.directional4 = new THREE.DirectionalLight(0xffffff, 1.05);
+            lights.directional4.position.set(0, 5, 0);
+            scene.add(lights.directional4);
+
+            lights.hemisphere = new THREE.HemisphereLight(0xffffff, 0x444444, 0.9);
+            lights.hemisphere.position.set(0, 20, 0);
+            scene.add(lights.hemisphere);
+
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize);
+
+            // 3D 뷰에서 모델 클릭 선택
+            renderer.domElement.addEventListener('click', (event) => {
+                const container = document.getElementById('canvas-container');
+                const rect = container.getBoundingClientRect();
+                
+                // 마우스 좌표를 정규화 (-1 ~ 1)
+                mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                
+                // Raycaster 업데이트
+                raycaster.setFromCamera(mouse, camera);
+                
+                // 모든 모델 객체 수집
+                const allObjects = [];
+                models.forEach(model => {
+                    if (model.visible) {
+                        model.object.traverse(child => {
+                            if (child instanceof THREE.Mesh) {
+                                allObjects.push({mesh: child, model: model});
+                            }
+                        });
+                    }
+                });
+                
+                // 교차 체크
+                const meshes = allObjects.map(obj => obj.mesh);
+                const intersects = raycaster.intersectObjects(meshes);
+                
+                if (intersects.length > 0) {
+                    // 클릭된 메쉬가 속한 모델 찾기
+                    const clickedMesh = intersects[0].object;
+                    const foundModel = allObjects.find(obj => obj.mesh === clickedMesh);
+                    
+                    if (foundModel) {
+                        const modelIndex = models.indexOf(foundModel.model);
+                        if (modelIndex !== -1) {
+                            selectModel(modelIndex);
+                        }
+                    }
+                } else {
+                    // 빈 공간 클릭 시 선택 해제
+                    deselectModel();
+                }
+            });
+
+            // Animation loop
+            animate();
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const delta = clock.getDelta();
+            
+            if (animationMixer) {
+                animationMixer.update(delta);
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function loadModel(file) {
+            document.getElementById('loading').classList.add('active');
+
+            const reader = new FileReader();
+            const extension = file.name.split('.').pop().toLowerCase();
+            const modelId = Date.now() + Math.random();
+
+            reader.onload = function(e) {
+                const contents = e.target.result;
+
+                try {
+                    switch(extension) {
+                        case 'obj':
+                            loadOBJ(contents, file, modelId);
+                            break;
+                        case 'fbx':
+                            loadFBX(contents, file, modelId);
+                            break;
+                        case 'stl':
+                            loadSTL(contents, file, modelId);
+                            break;
+                        case 'gltf':
+                        case 'glb':
+                            loadGLTF(contents, file, modelId);
+                            break;
+                        case 'usdz':
+                            loadUSDZ(contents, file, modelId);
+                            break;
+                        case 'ply':
+                            loadPLY(contents, file, modelId);
+                            break;
+                        case '3ds':
+                            load3DS(contents, file, modelId);
+                            break;
+                        default:
+                            alert('지원하지 않는 파일 형식입니다.');
+                            document.getElementById('loading').classList.remove('active');
+                    }
+                } catch (error) {
+                    console.error('파일 로딩 오류:', error);
+                    alert('파일을 불러오는 중 오류가 발생했습니다.');
+                    document.getElementById('loading').classList.remove('active');
+                }
+            };
+
+            if (extension === 'gltf' || extension === 'glb' || extension === 'fbx' || 
+                extension === 'usdz' || extension === 'ply' || extension === '3ds') {
+                reader.readAsArrayBuffer(file);
+            } else {
+                reader.readAsText(file);
+            }
+        }
+
+        function loadOBJ(contents, file, modelId) {
+            const loader = new THREE.OBJLoader();
+            const object = loader.parse(contents);
+            
+            object.traverse(child => {
+                if (child instanceof THREE.Mesh) {
+                    child.material = new THREE.MeshStandardMaterial({
+                        color: 0x888888,
+                        roughness: 0.5,
+                        metalness: 0.3,
+                        side: THREE.DoubleSide
+                    });
+                }
+            });
+            
+            addModelToScene(object, file, modelId);
+        }
+
+        function loadFBX(contents, file, modelId) {
+            const originalWarn = console.warn;
+            console.warn = () => {};
+            
+            try {
+                const loader = new THREE.FBXLoader();
+                const object = loader.parse(contents);
+                
+                object.traverse(child => {
+                    if (child instanceof THREE.Mesh && child.material) {
+                        child.material.side = THREE.DoubleSide;
+                    }
+                });
+                
+                if (object.animations && object.animations.length > 0) {
+                    animationMixer = new THREE.AnimationMixer(object);
+                    
+                    object.animations.forEach(clip => {
+                        const action = animationMixer.clipAction(clip);
+                        action.play();
+                    });
+                    
+                    document.getElementById('animationControls').style.display = 'block';
+                    updateAnimationInfo(object.animations);
+                } else {
+                    document.getElementById('animationControls').style.display = 'none';
+                }
+                
+                addModelToScene(object, file, modelId);
+            } finally {
+                console.warn = originalWarn;
+            }
+        }
+
+        function loadSTL(contents, file, modelId) {
+            const loader = new THREE.STLLoader();
+            const geometry = loader.parse(contents);
+            
+            geometry.computeBoundingBox();
+            const center = new THREE.Vector3();
+            geometry.boundingBox.getCenter(center);
+            geometry.translate(-center.x, -center.y, -center.z);
+            
+            geometry.computeVertexNormals();
+            
+            const material = new THREE.MeshStandardMaterial({ 
+                color: 0x888888,
+                roughness: 0.4,
+                metalness: 0.6,
+                flatShading: false,
+                side: THREE.DoubleSide
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            addModelToScene(mesh, file, modelId);
+        }
+
+        function loadGLTF(contents, file, modelId) {
+            const loader = new THREE.GLTFLoader();
+            const isGLB = file.name.toLowerCase().endsWith('.glb');
+            
+            loader.parse(contents, '', (gltf) => {
+                gltf.scene.traverse(child => {
+                    if (child instanceof THREE.Mesh && child.material) {
+                        child.material.side = THREE.DoubleSide;
+                    }
+                });
+                
+                if (gltf.animations && gltf.animations.length > 0) {
+                    animationMixer = new THREE.AnimationMixer(gltf.scene);
+                    
+                    gltf.animations.forEach(clip => {
+                        const action = animationMixer.clipAction(clip);
+                        action.play();
+                    });
+                    
+                    document.getElementById('animationControls').style.display = 'block';
+                    updateAnimationInfo(gltf.animations);
+                } else {
+                    document.getElementById('animationControls').style.display = 'none';
+                }
+                
+                addModelToScene(gltf.scene, file, modelId);
+            }, (error) => {
+                console.error('GLTF 로딩 오류:', error);
+                alert('GLTF/GLB 파일을 불러오는 중 오류가 발생했습니다.');
+                document.getElementById('loading').classList.remove('active');
+            });
+        }
+
+        function loadUSDZ(contents, file, modelId) {
+            const loader = new THREE.USDZLoader();
+            const group = loader.parse(contents);
+            
+            group.traverse(child => {
+                if (child instanceof THREE.Mesh && child.material) {
+                    child.material.side = THREE.DoubleSide;
+                }
+            });
+            
+            addModelToScene(group, file, modelId);
+        }
+
+        function loadPLY(contents, file, modelId) {
+            const loader = new THREE.PLYLoader();
+            const geometry = loader.parse(contents);
+            
+            geometry.computeBoundingBox();
+            const center = new THREE.Vector3();
+            geometry.boundingBox.getCenter(center);
+            geometry.translate(-center.x, -center.y, -center.z);
+            
+            geometry.computeVertexNormals();
+            
+            const material = new THREE.MeshStandardMaterial({ 
+                color: 0x888888,
+                roughness: 0.4,
+                metalness: 0.6,
+                flatShading: false,
+                side: THREE.DoubleSide,
+                vertexColors: geometry.attributes.color ? true : false
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            addModelToScene(mesh, file, modelId);
+        }
+
+        function load3DS(contents, file, modelId) {
+            const loader = new THREE.TDSLoader();
+            const object = loader.parse(contents);
+            
+            object.traverse(child => {
+                if (child instanceof THREE.Mesh && child.material) {
+                    child.material.side = THREE.DoubleSide;
+                }
+            });
+            
+            addModelToScene(object, file, modelId);
+        }
+
+        function addModelToScene(object, file, modelId) {
+            scene.add(object);
+
+            const box = new THREE.Box3().setFromObject(object);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+            
+            const targetSize = 4;
+            const scale = targetSize / maxDim;
+            object.scale.multiplyScalar(scale);
+            
+            box.setFromObject(object);
+            const scaledCenter = box.getCenter(new THREE.Vector3());
+            
+            // 모델들을 약간씩 오프셋
+            const offset = models.length * 2;
+            object.position.x = offset - scaledCenter.x;
+            object.position.y -= scaledCenter.y;
+            object.position.z -= scaledCenter.z;
+
+            // 모델 정보 저장
+            models.push({
+                id: modelId,
+                object: object,
+                name: file.name,
+                size: file.size,
+                visible: true,
+                initialPosition: {x: object.position.x, y: object.position.y, z: object.position.z},
+                initialRotation: {x: 0, y: 0, z: 0},
+                initialScale: object.scale.x
+            });
+
+            // UI 업데이트
+            updateModelList();
+            
+            // 첫 번째 모델이면 카메라 위치 조정
+            if (models.length === 1) {
+                const scaledSize = box.getSize(new THREE.Vector3());
+                const maxScaledDim = Math.max(scaledSize.x, scaledSize.y, scaledSize.z);
+                const fov = camera.fov * (Math.PI / 180);
+                const cameraDistance = Math.abs(maxScaledDim / Math.sin(fov / 2)) * 1.5;
+
+                camera.position.set(
+                    cameraDistance * 0.7,
+                    cameraDistance * 0.5,
+                    cameraDistance * 0.7
+                );
+                
+                controls.target.set(0, 0, 0);
+                controls.update();
+            }
+
+            document.getElementById('loading').classList.remove('active');
+            document.getElementById('resetBtn').disabled = false;
+            document.getElementById('downloadBtn').disabled = false;
+        }
+
+        function updateModelList() {
+            const modelItems = document.getElementById('modelItems');
+            const modelList = document.getElementById('modelList');
+            
+            if (models.length === 0) {
+                modelList.classList.remove('active');
+                return;
+            }
+            
+            modelList.classList.add('active');
+            modelItems.innerHTML = '';
+            
+            models.forEach((model, index) => {
+                const item = document.createElement('div');
+                item.className = 'model-item' + (selectedModel === model ? ' selected' : '');
+                item.innerHTML = `
+                    <div class="model-item-info">
+                        <div class="model-item-name" title="${model.name}">${model.name}</div>
+                        <div class="model-item-size">${formatFileSize(model.size)}</div>
+                    </div>
+                    <div class="model-item-controls">
+                        <button class="model-item-btn ${model.visible ? '' : 'hidden'}" onclick="event.stopPropagation(); toggleModel(${index})">
+                            ${model.visible ? '👁️' : '🚫'}
+                        </button>
+                        <button class="model-item-btn" onclick="event.stopPropagation(); removeModel(${index})">🗑️</button>
+                    </div>
+                `;
+                // 클릭 이벤트 리스너 추가
+                item.addEventListener('click', () => {
+                    console.log('모델 아이템 클릭됨, index:', index);
+                    selectModel(index);
+                });
+                modelItems.appendChild(item);
+            });
+        }
+
+        function selectModel(index) {
+            console.log('selectModel 호출됨, index:', index, 'models:', models);
+            if (models[index]) {
+                selectedModel = models[index];
+                console.log('모델 선택됨:', selectedModel);
+                updateModelList();
+                updateTransformControls();
+                const transformEl = document.getElementById('transformControls');
+                console.log('transformControls 엘리먼트:', transformEl);
+                transformEl.classList.add('active');
+                console.log('active 클래스 추가 완료');
+            }
+        }
+
+        function deselectModel() {
+            selectedModel = null;
+            updateModelList();
+            document.getElementById('transformControls').classList.remove('active');
+        }
+
+        function updateTransformControls() {
+            if (!selectedModel) return;
+
+            const obj = selectedModel.object;
+            
+            // 위치
+            document.getElementById('posX').value = obj.position.x.toFixed(1);
+            document.getElementById('posY').value = obj.position.y.toFixed(1);
+            document.getElementById('posZ').value = obj.position.z.toFixed(1);
+            document.getElementById('posXValue').textContent = obj.position.x.toFixed(1);
+            document.getElementById('posYValue').textContent = obj.position.y.toFixed(1);
+            document.getElementById('posZValue').textContent = obj.position.z.toFixed(1);
+            
+            // 회전 (라디안 -> 도)
+            const rotX = (obj.rotation.x * 180 / Math.PI) % 360;
+            const rotY = (obj.rotation.y * 180 / Math.PI) % 360;
+            const rotZ = (obj.rotation.z * 180 / Math.PI) % 360;
+            
+            document.getElementById('rotX').value = rotX.toFixed(0);
+            document.getElementById('rotY').value = rotY.toFixed(0);
+            document.getElementById('rotZ').value = rotZ.toFixed(0);
+            document.getElementById('rotXValue').textContent = rotX.toFixed(0) + '°';
+            document.getElementById('rotYValue').textContent = rotY.toFixed(0) + '°';
+            document.getElementById('rotZValue').textContent = rotZ.toFixed(0) + '°';
+            
+            // 크기
+            const avgScale = (obj.scale.x + obj.scale.y + obj.scale.z) / 3;
+            const relativeScale = avgScale / selectedModel.initialScale;
+            document.getElementById('scale').value = relativeScale.toFixed(1);
+            document.getElementById('scaleValue').textContent = relativeScale.toFixed(1) + 'x';
+        }
+
+        function toggleModel(index) {
+            if (models[index]) {
+                models[index].visible = !models[index].visible;
+                models[index].object.visible = models[index].visible;
+                updateModelList();
+            }
+        }
+
+        function removeModel(index) {
+            if (models[index]) {
+                if (selectedModel === models[index]) {
+                    deselectModel();
+                }
+                scene.remove(models[index].object);
+                models.splice(index, 1);
+                updateModelList();
+                
+                if (models.length === 0) {
+                    document.getElementById('resetBtn').disabled = true;
+                    document.getElementById('downloadBtn').disabled = true;
+                }
+            }
+        }
+
+        function updateAnimationInfo(animations) {
+            const animInfo = document.getElementById('animationInfo');
+            if (animations.length > 0) {
+                const names = animations.map(clip => clip.name).join(', ');
+                animInfo.textContent = `애니메이션 ${animations.length}개: ${names}`;
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+
+        // Event listeners
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('drag-over');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('drag-over');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            for (let i = 0; i < files.length; i++) {
+                loadModel(files[i]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const files = e.target.files;
+            for (let i = 0; i < files.length; i++) {
+                loadModel(files[i]);
+            }
+        });
+
+        document.getElementById('bgColor').addEventListener('input', (e) => {
+            scene.background = new THREE.Color(e.target.value);
+        });
+
+        document.getElementById('wireframe').addEventListener('change', (e) => {
+            models.forEach(model => {
+                model.object.traverse(child => {
+                    if (child instanceof THREE.Mesh) {
+                        child.material.wireframe = e.target.checked;
+                    }
+                });
+            });
+        });
+
+        document.getElementById('autoRotate').addEventListener('change', (e) => {
+            controls.autoRotate = e.target.checked;
+            controls.autoRotateSpeed = 2.0;
+        });
+
+        document.getElementById('lightIntensity').addEventListener('input', (e) => {
+            const intensity = parseFloat(e.target.value);
+            lights.ambient.intensity = intensity * 0.8;
+            lights.directional1.intensity = intensity * 0.8;
+            lights.directional2.intensity = intensity * 0.6;
+            lights.directional3.intensity = intensity * 0.4;
+            lights.directional4.intensity = intensity * 0.7;
+            lights.hemisphere.intensity = intensity * 0.6;
+        });
+
+        document.getElementById('playAnimation').addEventListener('change', (e) => {
+            if (animationMixer) {
+                if (e.target.checked) {
+                    animationMixer.timeScale = 1;
+                } else {
+                    animationMixer.timeScale = 0;
+                }
+            }
+        });
+
+        // 변형 컨트롤 이벤트 리스너
+        document.getElementById('posX').addEventListener('input', (e) => {
+            if (selectedModel) {
+                selectedModel.object.position.x = parseFloat(e.target.value);
+                document.getElementById('posXValue').textContent = e.target.value;
+            }
+        });
+
+        document.getElementById('posY').addEventListener('input', (e) => {
+            if (selectedModel) {
+                selectedModel.object.position.y = parseFloat(e.target.value);
+                document.getElementById('posYValue').textContent = e.target.value;
+            }
+        });
+
+        document.getElementById('posZ').addEventListener('input', (e) => {
+            if (selectedModel) {
+                selectedModel.object.position.z = parseFloat(e.target.value);
+                document.getElementById('posZValue').textContent = e.target.value;
+            }
+        });
+
+        document.getElementById('rotX').addEventListener('input', (e) => {
+            if (selectedModel) {
+                selectedModel.object.rotation.x = parseFloat(e.target.value) * Math.PI / 180;
+                document.getElementById('rotXValue').textContent = e.target.value + '°';
+            }
+        });
+
+        document.getElementById('rotY').addEventListener('input', (e) => {
+            if (selectedModel) {
+                selectedModel.object.rotation.y = parseFloat(e.target.value) * Math.PI / 180;
+                document.getElementById('rotYValue').textContent = e.target.value + '°';
+            }
+        });
+
+        document.getElementById('rotZ').addEventListener('input', (e) => {
+            if (selectedModel) {
+                selectedModel.object.rotation.z = parseFloat(e.target.value) * Math.PI / 180;
+                document.getElementById('rotZValue').textContent = e.target.value + '°';
+            }
+        });
+
+        document.getElementById('scale').addEventListener('input', (e) => {
+            if (selectedModel) {
+                const newScale = parseFloat(e.target.value) * selectedModel.initialScale;
+                selectedModel.object.scale.set(newScale, newScale, newScale);
+                document.getElementById('scaleValue').textContent = e.target.value + 'x';
+            }
+        });
+
+        document.getElementById('deselectBtn').addEventListener('click', deselectModel);
+
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            if (models.length > 0) {
+                // 모든 모델의 바운딩 박스 계산
+                const box = new THREE.Box3();
+                models.forEach(model => {
+                    const modelBox = new THREE.Box3().setFromObject(model.object);
+                    box.union(modelBox);
+                });
+                
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const fov = camera.fov * (Math.PI / 180);
+                const cameraDistance = Math.abs(maxDim / Math.sin(fov / 2)) * 1.5;
+
+                camera.position.set(
+                    cameraDistance * 0.7,
+                    cameraDistance * 0.5,
+                    cameraDistance * 0.7
+                );
+                controls.target.set(0, 0, 0);
+                controls.update();
+            }
+        });
+
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            renderer.render(scene, camera);
+            const link = document.createElement('a');
+            link.download = 'screenshot.png';
+            link.href = renderer.domElement.toDataURL();
+            link.click();
+        });
+
+        // Initialize
+        init();
+    </script>
+</body>
+</html>
